@@ -1,0 +1,21 @@
+{
+    "name": "peroumal/webtrees-transcribe",
+    "description": "Webtrees module — transcribe historical documents using Claude Vision AI",
+    "type": "webtrees-module",
+    "license": "GPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Peroumal Naik",
+            "email": "peroumal@hey.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "fisharebest/webtrees": "~2.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Peroumal\\WebtreesTranscribe\\": "src/"
+        }
+    }
+}

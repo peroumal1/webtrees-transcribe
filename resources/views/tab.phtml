@@ -1,0 +1,137 @@
+<?php
+
+use Fisharebest\Webtrees\I18N;
+
+/**
+ * @var \Fisharebest\Webtrees\Individual        $individual
+ * @var \Peroumal\WebtreesTranscribe\TranscribeModule $module
+ * @var bool                                    $api_key_set
+ * @var string                                  $route_url
+ */
+?>
+
+<div class="wt-transcribe-tab p-3">
+    <?php if (!$api_key_set): ?>
+        <div class="alert alert-warning">
+            <?= I18N::translate('The Transcribe module requires an Anthropic API key. Please configure it in the module settings.') ?>
+        </div>
+    <?php else: ?>
+        <p class="text-muted small">
+            <?= I18N::translate('Upload a scanned document (image or PDF) to extract names, dates, and places using Claude AI.') ?>
+        </p>
+
+        <form id="wt-transcribe-form" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="<?= csrf_field() ?>">
+            <input type="hidden" name="tree" value="<?= e($individual->tree()->name()) ?>">
+            <input type="hidden" name="xref" value="<?= e($individual->xref()) ?>">
+
+            <div class="mb-3">
+                <label for="wt-transcribe-file" class="form-label">
+                    <?= I18N::translate('Document image') ?>
+                </label>
+                <input
+                    type="file"
+                    id="wt-transcribe-file"
+                    name="document"
+                    class="form-control"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    required
+                >
+            </div>
+
+            <button type="submit" id="wt-transcribe-submit" class="btn btn-primary">
+                <?= I18N::translate('Transcribe') ?>
+            </button>
+        </form>
+
+        <div id="wt-transcribe-loading" class="mt-3 d-none">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            <?= I18N::translate('Transcribing document…') ?>
+        </div>
+
+        <div id="wt-transcribe-error" class="alert alert-danger mt-3 d-none"></div>
+
+        <div id="wt-transcribe-result" class="mt-4 d-none">
+            <h6><?= I18N::translate('Transcription') ?></h6>
+            <pre id="wt-transcribe-text" class="bg-light p-3 rounded small" style="white-space: pre-wrap;"></pre>
+
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <h6><?= I18N::translate('Names found') ?></h6>
+                    <ul id="wt-transcribe-names" class="small"></ul>
+                </div>
+                <div class="col-md-6">
+                    <h6><?= I18N::translate('Dates found') ?></h6>
+                    <ul id="wt-transcribe-dates" class="small"></ul>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><?= I18N::translate('Places found') ?></h6>
+                    <ul id="wt-transcribe-places" class="small"></ul>
+                </div>
+                <div class="col-md-6">
+                    <h6><?= I18N::translate('Relationships') ?></h6>
+                    <ul id="wt-transcribe-relationships" class="small"></ul>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        document.getElementById('wt-transcribe-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const form     = e.target;
+            const loading  = document.getElementById('wt-transcribe-loading');
+            const error    = document.getElementById('wt-transcribe-error');
+            const result   = document.getElementById('wt-transcribe-result');
+            const submit   = document.getElementById('wt-transcribe-submit');
+
+            loading.classList.remove('d-none');
+            error.classList.add('d-none');
+            result.classList.add('d-none');
+            submit.disabled = true;
+
+            try {
+                const res = await fetch(<?= json_encode($route_url) ?>, {
+                    method: 'POST',
+                    body: new FormData(form),
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    error.textContent = data.error || 'An unexpected error occurred.';
+                    error.classList.remove('d-none');
+                    return;
+                }
+
+                document.getElementById('wt-transcribe-text').textContent = data.transcription ?? '';
+                renderList('wt-transcribe-names', data.names);
+                renderList('wt-transcribe-dates', data.dates);
+                renderList('wt-transcribe-places', data.places);
+                renderList('wt-transcribe-relationships', data.relationships);
+                result.classList.remove('d-none');
+
+            } catch (err) {
+                error.textContent = 'Network error. Please try again.';
+                error.classList.remove('d-none');
+            } finally {
+                loading.classList.add('d-none');
+                submit.disabled = false;
+            }
+        });
+
+        function renderList(id, items) {
+            const el = document.getElementById(id);
+            el.innerHTML = '';
+            (items ?? []).forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = item;
+                el.appendChild(li);
+            });
+        }
+        </script>
+    <?php endif; ?>
+</div>
