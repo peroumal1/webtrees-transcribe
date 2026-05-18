@@ -1,0 +1,33 @@
+<?php
+
+/** @var string $api_key */
+/** @var string $save_url */
+/** @var string $title */
+
+?>
+
+<div class="container mt-4">
+    <h1><?= e($title) ?></h1>
+
+    <form method="post" action="<?= e($save_url) ?>">
+        <?= csrf_field() ?>
+
+        <div class="mb-3">
+            <label class="form-label" for="api_key">Anthropic API key</label>
+            <input
+                class="form-control"
+                id="api_key"
+                name="api_key"
+                type="password"
+                autocomplete="off"
+                value="<?= e($api_key) ?>"
+                placeholder="sk-ant-…"
+            >
+            <div class="form-text">
+                Obtain a key at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>.
+            </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+</div>

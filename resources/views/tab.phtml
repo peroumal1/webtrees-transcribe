@@ -3,10 +3,11 @@
 use Fisharebest\Webtrees\I18N;
 
 /**
- * @var \Fisharebest\Webtrees\Individual        $individual
- * @var \Peroumal\WebtreesTranscribe\TranscribeModule $module
- * @var bool                                    $api_key_set
- * @var string                                  $route_url
+ * @var \Fisharebest\Webtrees\Individual                    $individual
+ * @var \Peroumal1\WebtreesTranscribe\TranscribeModule      $module
+ * @var bool                                                $api_key_set
+ * @var string                                              $route_url
+ * @var string                                              $add_fact_url
  */
 ?>
 
@@ -21,9 +22,7 @@ use Fisharebest\Webtrees\I18N;
         </p>
 
         <form id="wt-transcribe-form" enctype="multipart/form-data">
-            <input type="hidden" name="_csrf" value="<?= csrf_field() ?>">
-            <input type="hidden" name="tree" value="<?= e($individual->tree()->name()) ?>">
-            <input type="hidden" name="xref" value="<?= e($individual->xref()) ?>">
+            <?= csrf_field() ?>
 
             <div class="mb-3">
                 <label for="wt-transcribe-file" class="form-label">
@@ -76,62 +75,138 @@ use Fisharebest\Webtrees\I18N;
                     <ul id="wt-transcribe-relationships" class="small"></ul>
                 </div>
             </div>
+
+            <hr>
+            <h6><?= I18N::translate('Add fact to this record') ?></h6>
+            <div id="wt-add-fact-success" class="alert alert-success d-none"></div>
+            <div id="wt-add-fact-error" class="alert alert-danger d-none"></div>
+
+            <form id="wt-add-fact-form" class="row g-2 align-items-end">
+                <?= csrf_field() ?>
+                <div class="col-md-3">
+                    <label class="form-label small"><?= I18N::translate('Fact type') ?></label>
+                    <select name="fact_type" class="form-select form-select-sm">
+                        <option value="BIRT"><?= I18N::translate('Birth') ?></option>
+                        <option value="BAPM"><?= I18N::translate('Baptism') ?></option>
+                        <option value="DEAT"><?= I18N::translate('Death') ?></option>
+                        <option value="BURI"><?= I18N::translate('Burial') ?></option>
+                        <option value="MARR"><?= I18N::translate('Marriage') ?></option>
+                        <option value="RESI"><?= I18N::translate('Residence') ?></option>
+                        <option value="EMIG"><?= I18N::translate('Emigration') ?></option>
+                        <option value="IMMI"><?= I18N::translate('Immigration') ?></option>
+                        <option value="NATU"><?= I18N::translate('Naturalization') ?></option>
+                        <option value="CENS"><?= I18N::translate('Census') ?></option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small"><?= I18N::translate('Date') ?></label>
+                    <input type="text" id="wt-fact-date" name="date" class="form-control form-control-sm" placeholder="14 DEC 1895">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small"><?= I18N::translate('Place') ?></label>
+                    <input type="text" id="wt-fact-place" name="place" class="form-control form-control-sm" placeholder="Sandringham, Norfolk, England">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-success btn-sm w-100"><?= I18N::translate('Add') ?></button>
+                </div>
+            </form>
         </div>
 
         <script>
-        document.getElementById('wt-transcribe-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        (function () {
+            const transcribeUrl = <?= json_encode($route_url) ?>;
+            const addFactUrl    = <?= json_encode($add_fact_url) ?>;
 
-            const form     = e.target;
-            const loading  = document.getElementById('wt-transcribe-loading');
-            const error    = document.getElementById('wt-transcribe-error');
-            const result   = document.getElementById('wt-transcribe-result');
-            const submit   = document.getElementById('wt-transcribe-submit');
+            document.getElementById('wt-transcribe-form').addEventListener('submit', async function (e) {
+                e.preventDefault();
 
-            loading.classList.remove('d-none');
-            error.classList.add('d-none');
-            result.classList.add('d-none');
-            submit.disabled = true;
+                const loading = document.getElementById('wt-transcribe-loading');
+                const error   = document.getElementById('wt-transcribe-error');
+                const result  = document.getElementById('wt-transcribe-result');
+                const submit  = document.getElementById('wt-transcribe-submit');
 
-            try {
-                const res = await fetch(<?= json_encode($route_url) ?>, {
-                    method: 'POST',
-                    body: new FormData(form),
-                });
+                loading.classList.remove('d-none');
+                error.classList.add('d-none');
+                result.classList.add('d-none');
+                submit.disabled = true;
 
-                const data = await res.json();
+                try {
+                    const res  = await fetch(transcribeUrl, { method: 'POST', body: new FormData(e.target) });
+                    const data = await res.json();
 
-                if (!res.ok || data.error) {
-                    error.textContent = data.error || 'An unexpected error occurred.';
+                    if (!res.ok || data.error) {
+                        error.textContent = data.error || 'An unexpected error occurred.';
+                        error.classList.remove('d-none');
+                        return;
+                    }
+
+                    document.getElementById('wt-transcribe-text').textContent = data.transcription ?? '';
+                    renderList('wt-transcribe-names', data.names);
+                    renderList('wt-transcribe-dates', data.dates);
+                    renderList('wt-transcribe-places', data.places);
+                    renderList('wt-transcribe-relationships', data.relationships);
+
+                    // Pre-fill the add-fact form with first extracted date and place
+                    if (data.dates && data.dates.length > 0) {
+                        document.getElementById('wt-fact-date').value = data.dates[0];
+                    }
+                    if (data.places && data.places.length > 0) {
+                        document.getElementById('wt-fact-place').value = data.places[0];
+                    }
+
+                    result.classList.remove('d-none');
+                } catch (err) {
+                    error.textContent = 'Network error. Please try again.';
                     error.classList.remove('d-none');
-                    return;
+                } finally {
+                    loading.classList.add('d-none');
+                    submit.disabled = false;
                 }
-
-                document.getElementById('wt-transcribe-text').textContent = data.transcription ?? '';
-                renderList('wt-transcribe-names', data.names);
-                renderList('wt-transcribe-dates', data.dates);
-                renderList('wt-transcribe-places', data.places);
-                renderList('wt-transcribe-relationships', data.relationships);
-                result.classList.remove('d-none');
-
-            } catch (err) {
-                error.textContent = 'Network error. Please try again.';
-                error.classList.remove('d-none');
-            } finally {
-                loading.classList.add('d-none');
-                submit.disabled = false;
-            }
-        });
-
-        function renderList(id, items) {
-            const el = document.getElementById(id);
-            el.innerHTML = '';
-            (items ?? []).forEach(item => {
-                const li = document.createElement('li');
-                li.textContent = item;
-                el.appendChild(li);
             });
-        }
+
+            document.getElementById('wt-add-fact-form').addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const successEl = document.getElementById('wt-add-fact-success');
+                const errorEl   = document.getElementById('wt-add-fact-error');
+                const btn       = e.target.querySelector('button[type=submit]');
+
+                successEl.classList.add('d-none');
+                errorEl.classList.add('d-none');
+                btn.disabled = true;
+
+                try {
+                    const body = new FormData(e.target);
+                    const res  = await fetch(addFactUrl, { method: 'POST', body });
+                    const text = await res.text();
+                    let data;
+                    try { data = JSON.parse(text); } catch (_) { data = { error: text.substring(0, 200) }; }
+
+                    if (!res.ok || data.error) {
+                        errorEl.textContent = data.error || 'Could not add fact.';
+                        errorEl.classList.remove('d-none');
+                    } else {
+                        successEl.textContent = 'Fact added — reload the page to see it in the pending changes.';
+                        successEl.classList.remove('d-none');
+                    }
+                } catch (err) {
+                    errorEl.textContent = 'Network error: ' + err.message;
+                    errorEl.classList.remove('d-none');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            function renderList(id, items) {
+                const el = document.getElementById(id);
+                el.innerHTML = '';
+                (items ?? []).forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    el.appendChild(li);
+                });
+            }
+        })();
         </script>
     <?php endif; ?>
 </div>
